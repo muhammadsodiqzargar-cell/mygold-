@@ -1,5 +1,4 @@
 import asyncio
-import requests
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
@@ -8,6 +7,13 @@ from aiogram.fsm.context import FSMContext
 
 # ⚠️ UMBURG’I: BotFather bergan tokeningizni shu yerga yozing!
 BOT_TOKEN = "8949282370:AAGin5wPZwJLqE5SA6KAJod4VA0QUy0Zj_0"
+
+# ⚠️ ADMIN SOZLAMALARI:
+# Telegram'dagi @my_id_bot ga kirib ID raqamingizni oling va shu yerga yozing (masalan: 123456789)
+ADMIN_ID = 1341336380
+
+# Boshlang'ich 1 gramm 999 proba oltin narxi (Agar o'zgarsa, bot ichidan yangilaysiz)
+live_gold_price_999 = 1050000
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -20,6 +26,9 @@ class SellGoldState(StatesGroup):
     waiting_for_condition = State()
     waiting_for_stone_type = State()
 
+class AdminState(StatesGroup):
+    waiting_for_new_price = State()
+
 # Do'kon ma'lumotlari
 SHOP_NAME = "MyGold tilla do'koni"
 SHOP_ADDRESS = "Toshkent shahri, Novza Oltin Markazi"
@@ -28,15 +37,17 @@ SHOP_ADDRESS = "Toshkent shahri, Novza Oltin Markazi"
 SHOP_LATITUDE = 41.292915
 SHOP_LONGITUDE = 69.223297
 
-# Bosh menyu
-main_menu = ReplyKeyboardMarkup(
-    keyboard=[
+# Dinamik Bosh menyu (Admin uchun qo'shimcha tugma chiqadi)
+def get_main_menu(user_id: int):
+    buttons = [
         [KeyboardButton(text="📈 Bugungi Oltin Narxlari")],
         [KeyboardButton(text="💸 Tillamni sotmoqchiman"), KeyboardButton(text="🛍 Tilla sotib olish")],
         [KeyboardButton(text="📍 Bizning Manzil")]
-    ],
-    resize_keyboard=True
-)
+    ]
+    if user_id == ADMIN_ID:
+        buttons.append([KeyboardButton(text="⚙️ Narxni o'zgartirish (Admin)")])
+        
+    return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
 # Buyum holati menyusi
 condition_menu = ReplyKeyboardMarkup(
@@ -59,31 +70,47 @@ stone_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# LIVE Oltin narxini olish
-def get_live_gold_price():
-    try:
-        response = requests.get("https://cbu.uz/uz/arkhiv-kursov-valyut/json/").json()
-        usd_rate = float(response[0]['Rate'])
-        gold_gram_usd = 85.0
-        base_price_999 = int(gold_gram_usd * usd_rate)
-        return base_price_999
-    except:
-        return 1050000
-
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(
         f"Assalomu alaykum, {message.from_user.first_name}! 🌟\n\n"
-        f"**'{SHOP_NAME}' Zargarlik Botiga xush kelibsiz!**\n"
+        f"**'{SHOP_NAME}' Botiga xush kelibsiz!**\n"
         "Tillangizning holati, probasi va vazniga qarab baholab beraylikmi yoki tilla sotib olmoqchimisiz.",
-        reply_markup=main_menu,
+        reply_markup=get_main_menu(message.from_user.id),
         parse_mode="Markdown"
     )
 
+# ⚙️ ADMIN: Kunlik oltin narxini yangilash
+@dp.message(F.text == "⚙️ Narxni o'zgartirish (Admin)")
+async def set_price_start(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+    await state.set_state(AdminState.waiting_for_new_price)
+    await message.answer(
+        f"📊 Hozirgi 1 gramm (999 proba) narxi: **{live_gold_price_999:,} so'm**\n\n"
+        f"Yangi narxni kiriting (masalan: **1060000**):",
+        parse_mode="Markdown"
+    )
+
+@dp.message(AdminState.waiting_for_new_price)
+async def set_price_finish(message: types.Message, state: FSMContext):
+    global live_gold_price_999
+    if message.text.isdigit():
+        live_gold_price_999 = int(message.text)
+        await state.clear()
+        await message.answer(
+            f"✅ Bugungi 999 proba oltin narxi **{live_gold_price_999:,} so'm** ga o'zgartirildi!\n"
+            f"Barcha probalar va hisob-kitoblar yangilandi.",
+            reply_markup=get_main_menu(message.from_user.id),
+            parse_mode="Markdown"
+        )
+    else:
+        await message.answer("⚠️ Iltimos, faqat raqam ko'rinishida kiriting! Masalan: 1050000")
+
 @dp.message(F.text == "📈 Bugungi Oltin Narxlari")
 async def show_live_price(message: types.Message):
-    price_999 = get_live_gold_price()
+    price_999 = live_gold_price_999
     
     price_375 = int(price_999 * (375 / 999))
     price_585 = int(price_999 * (585 / 999))
@@ -101,7 +128,7 @@ async def show_live_price(message: types.Message):
         f"• **916 proba:** {price_916:,} so'm\n"
         f"• **958 proba:** {price_958:,} so'm\n"
         f"• **999 proba (Toza oltin):** {price_999:,} so'm\n\n"
-        f"🔄 *Narxlar Markaziy Bank valyuta kursi bo'yicha LIVE yangilanadi.*",
+        f"🔄 *Narxlar har kuni admin tomonidan do'konga moslab yangilanib boriladi.*",
         parse_mode="Markdown"
     )
 
@@ -119,7 +146,7 @@ async def show_contact_info(message: types.Message):
     await message.answer_location(
         latitude=SHOP_LATITUDE,
         longitude=SHOP_LONGITUDE,
-        reply_markup=main_menu
+        reply_markup=get_main_menu(message.from_user.id)
     )
 
 @dp.message(F.text == "💸 Tillamni sotmoqchiman")
@@ -149,7 +176,6 @@ async def get_proba(message: types.Message, state: FSMContext):
         proba = int(message.text)
         await state.update_data(proba=proba)
         await state.set_state(SellGoldState.waiting_for_condition)
-        # BU YERDA CONDITION_MENU CHIQARILADI:
         await message.answer("🛠 **Tillangizning holatini tanlang:**", reply_markup=condition_menu)
     except ValueError:
         await message.answer("⚠️ Iltimos, probani to'g'ri kiriting (masalan: 585)!")
@@ -158,7 +184,6 @@ async def get_proba(message: types.Message, state: FSMContext):
 async def get_condition(message: types.Message, state: FSMContext):
     await state.update_data(condition=message.text)
     await state.set_state(SellGoldState.waiting_for_stone_type)
-    # BU YERDA STONE_MENU CHIQARILADI:
     await message.answer("💎 **Buyumdagi tosh holatini tanlang:**", reply_markup=stone_menu)
 
 @dp.message(SellGoldState.waiting_for_stone_type)
@@ -169,7 +194,7 @@ async def calculate_final_price(message: types.Message, state: FSMContext):
     photo = user_data['photo']
     condition = user_data['condition']
     
-    price_999 = get_live_gold_price()
+    price_999 = live_gold_price_999
     base_gram_price = price_999 * (proba / 999)
     
     condition_coef = 1.0
@@ -206,7 +231,7 @@ async def calculate_final_price(message: types.Message, state: FSMContext):
             f"👉 **{total_price:,} so'm**\n\n"
             f"📌 *Izoh: Aniq narx do'konda tekshirilgach tasdiqlanadi.*"
         ),
-        reply_markup=main_menu,
+        reply_markup=get_main_menu(message.from_user.id),
         parse_mode="Markdown"
     )
     await state.clear()
