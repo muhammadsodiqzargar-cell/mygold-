@@ -6,19 +6,29 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
 # ⚠️ UMBURG’I: BotFather bergan tokeningizni shu yerga yozing!
-BOT_TOKEN = "8949282370:AAGin5wPZwJLqE5SA6KAJod4VA0QUy0Zj_0"
+BOT_TOKEN = "yozdim"
 
 # ⚠️ ADMIN SOZLAMALARI:
-# Telegram'dagi @my_id_bot ga kirib ID raqamingizni oling va shu yerga yozing (masalan: 123456789)
-ADMIN_ID = 1341336380
+# Telegram'dagi @my_id_bot ga kirib ID raqamingizni oling va shu yerga yozing
+ADMIN_ID = 123456789
 
-# Boshlang'ich 1 gramm 999 proba oltin narxi (Agar o'zgarsa, bot ichidan yangilaysiz)
+# Do'kon ma'lumotlari
+SHOP_NAME = "MyGold tilla do'koni"
+SHOP_ADDRESS = "Toshkent shahri, Novza Oltin Markazi"
+SHOP_CARD = "8600 0000 0000 0000 (MyGold Do'koni)"
+SHOP_PHONE = "+998 90 123 45 67"
+GROUP_LINK = "https://t.me/mygold_zargarlik_guruhi" # O'zingizning guruh havolangiz
+
+SHOP_LATITUDE = 41.292915
+SHOP_LONGITUDE = 69.223297
+
+# Boshlang'ich 1 gramm 999 proba oltin narxi
 live_gold_price_999 = 1050000
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Bosqichlar (FSM)
+# FSM Bosqichlari
 class SellGoldState(StatesGroup):
     waiting_for_photo = State()
     waiting_for_weight = State()
@@ -26,18 +36,17 @@ class SellGoldState(StatesGroup):
     waiting_for_condition = State()
     waiting_for_stone_type = State()
 
+class BuyGoldState(StatesGroup):
+    waiting_for_photo = State()
+    waiting_for_check_btn = State()
+    waiting_for_check_receipt = State()
+
 class AdminState(StatesGroup):
     waiting_for_new_price = State()
 
-# Do'kon ma'lumotlari
-SHOP_NAME = "MyGold tilla do'koni"
-SHOP_ADDRESS = "Toshkent shahri, Novza Oltin Markazi"
-
-# Do'koningizning koordinatalari
-SHOP_LATITUDE = 41.292915
-SHOP_LONGITUDE = 69.223297
-
-# Dinamik Bosh menyu (Admin uchun qo'shimcha tugma chiqadi)
+# ---------------------------------------------------------
+# MENYULAR
+# ---------------------------------------------------------
 def get_main_menu(user_id: int):
     buttons = [
         [KeyboardButton(text="📈 Bugungi Oltin Narxlari")],
@@ -46,10 +55,35 @@ def get_main_menu(user_id: int):
     ]
     if user_id == ADMIN_ID:
         buttons.append([KeyboardButton(text="⚙️ Narxni o'zgartirish (Admin)")])
-        
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
-# Buyum holati menyusi
+buy_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="📸 Rasmini tashlash")],
+        [KeyboardButton(text="👥 Guruh ssilkasi")],
+        [KeyboardButton(text="⬅️ Bosh menyuga qaytish")]
+    ],
+    resize_keyboard=True
+)
+
+check_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="🔎 Bundan bor yoki yo'q?")],
+        [KeyboardButton(text="⬅️ Bosh menyuga qaytish")]
+    ],
+    resize_keyboard=True
+)
+
+buy_action_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="💳 Olmoqchiman, karta raqamizni tashavoring")],
+        [KeyboardButton(text="📉 Narxini kelishtirib bering")],
+        [KeyboardButton(text="🤝 Zaklad tashamoqchiman")],
+        [KeyboardButton(text="⬅️ Bosh menyuga qaytish")]
+    ],
+    resize_keyboard=True
+)
+
 condition_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🔨 Lom")],
@@ -59,7 +93,6 @@ condition_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Tosh hajmiga qarab menyu
 stone_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="💎 Toshsiz")],
@@ -70,28 +103,165 @@ stone_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+# ---------------------------------------------------------
+# START VA ASOSIY BUYRUQLAR
+# ---------------------------------------------------------
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(
         f"Assalomu alaykum, {message.from_user.first_name}! 🌟\n\n"
-        f"**'{SHOP_NAME}' Botiga xush kelibsiz!**\n"
+        f"**'{SHOP_NAME}' Zargarlik Botiga xush kelibsiz!**\n"
         "Tillangizning holati, probasi va vazniga qarab baholab beraylikmi yoki tilla sotib olmoqchimisiz.",
         reply_markup=get_main_menu(message.from_user.id),
         parse_mode="Markdown"
     )
 
-# ⚙️ ADMIN: Kunlik oltin narxini yangilash
+@dp.message(F.text == "⬅️ Bosh menyuga qaytish")
+async def back_to_main(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer("Bosh menyu:", reply_markup=get_main_menu(message.from_user.id))
+
+# ---------------------------------------------------------
+# SOTIB OLISH BO'LIMI (BUY GOLD)
+# ---------------------------------------------------------
+@dp.message(F.text == "🛍 Tilla sotib olish")
+async def buy_gold_start(message: types.Message):
+    await message.answer(
+        "🛍 **Tilla sotib olish bo'limiga xush kelibsiz!**\n\n"
+        "Quyidagi tugmalardan birini tanlang:",
+        reply_markup=buy_menu,
+        parse_mode="Markdown"
+    )
+
+@dp.message(F.text == "👥 Guruh ssilkasi")
+async def send_group_link(message: types.Message):
+    await message.answer(
+        f"👥 **Bizning rasmiy tilla buyumlar guruhimiz:**\n\n"
+        f"👉 [Guruhga kirish uchun bosing]({GROUP_LINK})",
+        parse_mode="Markdown",
+        disable_web_page_preview=True
+    )
+
+@dp.message(F.text == "📸 Rasmini tashlash")
+async def ask_buy_photo(message: types.Message, state: FSMContext):
+    await state.set_state(BuyGoldState.waiting_for_photo)
+    await message.answer("📸 Sotib olmoqchi bo'lgan tillangizning rasmini tashlang:")
+
+@dp.message(BuyGoldState.waiting_for_photo, F.photo)
+async def receive_buy_photo(message: types.Message, state: FSMContext):
+    await state.update_data(photo=message.photo[-1].file_id)
+    await state.set_state(BuyGoldState.waiting_for_check_btn)
+    await message.answer("Rasm qabul qilindi. Pastdagi tugmani bosing:", reply_markup=check_menu)
+
+@dp.message(BuyGoldState.waiting_for_check_btn, F.text == "🔎 Bundan bor yoki yo'q?")
+async def check_availability(message: types.Message, state: FSMContext):
+    user_data = await state.get_data()
+    photo_id = user_data.get('photo')
+    
+    # Adminga xabar yuboriladi
+    if photo_id:
+        await bot.send_photo(
+            chat_id=ADMIN_ID,
+            photo=photo_id,
+            caption=f"📥 **Yangi buyurtma so'rovi!**\nMijoz: @{message.from_user.username or 'Mijoz'}\nID: `{message.from_user.id}`",
+            parse_mode="Markdown"
+        )
+    
+    await message.answer(
+        "🔎 **Buyum do'konimizda mavjudligini tekshirmoqdamiz...**\n\n"
+        "Menejerimiz tez orada javob beradi yoki quyidagi variantlardan birini tanlang:",
+        reply_markup=buy_action_menu,
+        parse_mode="Markdown"
+    )
+
+@dp.message(F.text == "💳 Olmoqchiman, karta raqamizni tashavoring")
+async def send_card_info(message: types.Message):
+    await message.answer(
+        f"💳 **Do'konimizning karta raqami:**\n\n"
+        f"`{SHOP_CARD}`\n\n"
+        f"📍 Yetkazib berish (Yandex) uchun iltimos **lokatsiyangizni** tashlab bering!",
+        parse_mode="Markdown"
+    )
+
+@dp.message(F.text == "📉 Narxini kelishtirib bering")
+async def discount_reply(message: types.Message):
+    # Adminga so'rov yuborish
+    await bot.send_message(
+        chat_id=ADMIN_ID,
+        text=f"⚠️ **Mijoz eng taqalgan narxini so'ramoqda!**\nMijoz: @{message.from_user.username or 'Mijoz'}\nID: `{message.from_user.id}`",
+        parse_mode="Markdown"
+    )
+    
+    await message.answer(
+        "📍 Novza do'konimizda.\n"
+        "Uzuk 5gr, 350$, razmeri 17.5\"\n\n"
+        "😊 **Bu eng kelishilgan va taqalgan narxi!**"
+    )
+
+@dp.message(F.text == "🤝 Zaklad tashamoqchiman")
+async def deposit_reply(message: types.Message, state: FSMContext):
+    await state.set_state(BuyGoldState.waiting_for_check_receipt)
+    await message.answer(
+        f"🤝 **Zaklad qilish bo'limi:**\n\n"
+        f"💳 **Do'konimiz karta raqami:**\n`{SHOP_CARD}`\n\n"
+        f"📸 **Iltimos, to'lov qilganingizni bilishimiz uchun to'lov cheki (rasmi)ni ushbu botga yuboring!**",
+        parse_mode="Markdown"
+    )
+
+# Chek (rasm) qabul qilish
+@dp.message(BuyGoldState.waiting_for_check_receipt, F.photo)
+async def receive_receipt(message: types.Message, state: FSMContext):
+    photo_id = message.photo[-1].file_id
+    
+    # Adminga zaklad haqida to'liq ma'lumot yuborish
+    await bot.send_photo(
+        chat_id=ADMIN_ID,
+        photo=photo_id,
+        caption=(
+            f"💸 **ZAKLAD TASHALDI!**\n\n"
+            f"👤 **Mijoz:** @{message.from_user.username or 'Username yo'q'}\n"
+            f"️ **Ismi:** {message.from_user.first_name}\n"
+            f"🆔 **ID:** `{message.from_user.id}`"
+        ),
+        parse_mode="Markdown"
+    )
+    
+    await message.answer(
+        "✅ **To'lov cheki qabul qilindi!**\n"
+        "Menejerimiz tez orada to'lovni tasdiqlaydi va siz bilan bog'lanadi. Rahmat!",
+        reply_markup=get_main_menu(message.from_user.id)
+    )
+    await state.clear()
+
+# ---------------------------------------------------------
+# ADMIN MONITORING VA JAVOB BERISH TIZIMI
+# ---------------------------------------------------------
+@dp.message(F.chat.type == "private", F.from_user.id != ADMIN_ID)
+async def forward_user_messages_to_admin(message: types.Message):
+    await message.forward(chat_id=ADMIN_ID)
+
+@dp.message(F.chat.type == "private", F.from_user.id == ADMIN_ID, F.reply_to_message)
+async def reply_to_user_from_admin(message: types.Message):
+    try:
+        if message.reply_to_message.forward_from:
+            target_user_id = message.reply_to_message.forward_from.id
+            await bot.send_message(chat_id=target_user_id, text=message.text)
+            await message.answer("✅ Javobingiz mijozga yetkazildi!")
+        else:
+            await message.answer("⚠️ Ushbu xabarga javob qaytarib bo'lmadi (Mijoz maxfiylik sozlamalari tufayli).")
+    except Exception as e:
+        await message.answer(f"⚠️ Xatolik yuz berdi: {e}")
+
+# ---------------------------------------------------------
+# SOTISH VA BOSHQA BO'LIMLAR
+# ---------------------------------------------------------
 @dp.message(F.text == "⚙️ Narxni o'zgartirish (Admin)")
 async def set_price_start(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return
     await state.set_state(AdminState.waiting_for_new_price)
-    await message.answer(
-        f"📊 Hozirgi 1 gramm (999 proba) narxi: **{live_gold_price_999:,} so'm**\n\n"
-        f"Yangi narxni kiriting (masalan: **1060000**):",
-        parse_mode="Markdown"
-    )
+    await message.answer(f"📊 Hozirgi 1 gr (999 proba) narxi: **{live_gold_price_999:,} so'm**\nYangi narxni kiriting:", parse_mode="Markdown")
 
 @dp.message(AdminState.waiting_for_new_price)
 async def set_price_finish(message: types.Message, state: FSMContext):
@@ -99,55 +269,23 @@ async def set_price_finish(message: types.Message, state: FSMContext):
     if message.text.isdigit():
         live_gold_price_999 = int(message.text)
         await state.clear()
-        await message.answer(
-            f"✅ Bugungi 999 proba oltin narxi **{live_gold_price_999:,} so'm** ga o'zgartirildi!\n"
-            f"Barcha probalar va hisob-kitoblar yangilandi.",
-            reply_markup=get_main_menu(message.from_user.id),
-            parse_mode="Markdown"
-        )
-    else:
-        await message.answer("⚠️ Iltimos, faqat raqam ko'rinishida kiriting! Masalan: 1050000")
+        await message.answer(f"✅ Bugungi oltin narxi **{live_gold_price_999:,} so'm** ga yangilandi!", reply_markup=get_main_menu(message.from_user.id), parse_mode="Markdown")
 
 @dp.message(F.text == "📈 Bugungi Oltin Narxlari")
 async def show_live_price(message: types.Message):
-    price_999 = live_gold_price_999
-    
-    price_375 = int(price_999 * (375 / 999))
-    price_585 = int(price_999 * (585 / 999))
-    price_750 = int(price_999 * (750 / 999))
-    price_875 = int(price_999 * (875 / 999))
-    price_916 = int(price_999 * (916 / 999))
-    price_958 = int(price_999 * (958 / 999))
-    
+    p999 = live_gold_price_999
     await message.answer(
-        f"📊 **Bugungi rasmiy oltin narxlari (1 gramm uchun):**\n\n"
-        f"• **375 proba:** {price_375:,} so'm\n"
-        f"• **583 / 585 proba:** {price_585:,} so'm\n"
-        f"• **750 proba:** {price_750:,} so'm\n"
-        f"• **875 proba:** {price_875:,} so'm\n"
-        f"• **916 proba:** {price_916:,} so'm\n"
-        f"• **958 proba:** {price_958:,} so'm\n"
-        f"• **999 proba (Toza oltin):** {price_999:,} so'm\n\n"
-        f"🔄 *Narxlar har kuni admin tomonidan do'konga moslab yangilanib boriladi.*",
+        f"📊 **Bugungi rasmiy oltin narxlari (1 gr uchun):**\n\n"
+        f"• **583 / 585 proba:** {int(p999 * 585 / 999):,} so'm\n"
+        f"• **750 proba:** {int(p999 * 750 / 999):,} so'm\n"
+        f"• **999 proba:** {p999:,} so'm\n",
         parse_mode="Markdown"
     )
 
-# 📍 MANZIL VA GEOLOKATSIYA YUBORISH
 @dp.message(F.text == "📍 Bizning Manzil")
 async def show_contact_info(message: types.Message):
-    await message.answer(
-        f"🏢 **{SHOP_NAME}**\n\n"
-        f"📍 **Manzil:** {SHOP_ADDRESS}\n"
-        f"⏰ **Ish vaqti:** Har kuni 09:00 dan 20:00 gacha\n\n"
-        f"👇 *Quyida do'konimizning xaritadagi joylashuvi:*",
-        parse_mode="Markdown"
-    )
-    
-    await message.answer_location(
-        latitude=SHOP_LATITUDE,
-        longitude=SHOP_LONGITUDE,
-        reply_markup=get_main_menu(message.from_user.id)
-    )
+    await message.answer(f"🏢 **{SHOP_NAME}**\n📍 **Manzil:** {SHOP_ADDRESS}")
+    await message.answer_location(latitude=SHOP_LATITUDE, longitude=SHOP_LONGITUDE, reply_markup=get_main_menu(message.from_user.id))
 
 @dp.message(F.text == "💸 Tillamni sotmoqchiman")
 async def start_sell(message: types.Message, state: FSMContext):
@@ -158,7 +296,7 @@ async def start_sell(message: types.Message, state: FSMContext):
 async def get_photo(message: types.Message, state: FSMContext):
     await state.update_data(photo=message.photo[-1].file_id)
     await state.set_state(SellGoldState.waiting_for_weight)
-    await message.answer("⚖️ Buyumning umumiy vaznini kiriting (masalan: **5.5** gramm):")
+    await message.answer("⚖️ Vaznini kiriting (masalan: 5.5):")
 
 @dp.message(SellGoldState.waiting_for_weight)
 async def get_weight(message: types.Message, state: FSMContext):
@@ -166,9 +304,9 @@ async def get_weight(message: types.Message, state: FSMContext):
         weight = float(message.text.replace(",", "."))
         await state.update_data(weight=weight)
         await state.set_state(SellGoldState.waiting_for_proba)
-        await message.answer("🔍 Probani yozing (masalan: **585**, **750** yoki **583**):")
+        await message.answer("🔍 Probani yozing (masalan: 585):")
     except ValueError:
-        await message.answer("⚠️ Iltimos, faqat raqam yozing! Masalan: 4.8")
+        await message.answer("⚠️ Iltimos, raqam yozing!")
 
 @dp.message(SellGoldState.waiting_for_proba)
 async def get_proba(message: types.Message, state: FSMContext):
@@ -176,15 +314,15 @@ async def get_proba(message: types.Message, state: FSMContext):
         proba = int(message.text)
         await state.update_data(proba=proba)
         await state.set_state(SellGoldState.waiting_for_condition)
-        await message.answer("🛠 **Tillangizning holatini tanlang:**", reply_markup=condition_menu)
+        await message.answer("🛠 Holatini tanlang:", reply_markup=condition_menu)
     except ValueError:
-        await message.answer("⚠️ Iltimos, probani to'g'ri kiriting (masalan: 585)!")
+        await message.answer("⚠️ Iltimos, probani raqamda kiriting!")
 
 @dp.message(SellGoldState.waiting_for_condition)
 async def get_condition(message: types.Message, state: FSMContext):
     await state.update_data(condition=message.text)
     await state.set_state(SellGoldState.waiting_for_stone_type)
-    await message.answer("💎 **Buyumdagi tosh holatini tanlang:**", reply_markup=stone_menu)
+    await message.answer("💎 Tosh holatini tanlang:", reply_markup=stone_menu)
 
 @dp.message(SellGoldState.waiting_for_stone_type)
 async def calculate_final_price(message: types.Message, state: FSMContext):
@@ -194,54 +332,14 @@ async def calculate_final_price(message: types.Message, state: FSMContext):
     photo = user_data['photo']
     condition = user_data['condition']
     
-    price_999 = live_gold_price_999
-    base_gram_price = price_999 * (proba / 999)
-    
-    condition_coef = 1.0
-    if condition == "🔨 Lom":
-        condition_coef = 0.95
-    elif condition == "✨ Eski tilla":
-        condition_coef = 0.98
-    elif condition == "🆕 Yangi tilla":
-        condition_coef = 1.00
-
-    stone_choice = message.text
-    stone_minus_percent = 0.0
-
-    if stone_choice == "✨ Mayda toshli":
-        stone_minus_percent = 0.02
-    elif stone_choice == "💍 Ko'p toshli":
-        stone_minus_percent = 0.05
-    elif stone_choice == "🔮 Katta toshli":
-        stone_minus_percent = 0.10
-
-    clean_weight = weight * (1 - stone_minus_percent)
-    final_gram_price = base_gram_price * condition_coef
-    total_price = int(clean_weight * final_gram_price)
-    
+    total_price = int(weight * (live_gold_price_999 * (proba / 999)))
     await message.answer_photo(
         photo=photo,
-        caption=(
-            f"🧮 **Tilla Baholash Natijasi:**\n\n"
-            f"• Umumiy vazni: **{weight} gramm**\n"
-            f"• Proba: **{proba}**\n"
-            f"• Buyum holati: **{condition}**\n"
-            f"• Tosh holati: **{stone_choice}**\n\n"
-            f"💰 **Xarid qilish summasi (Taxminiy):**\n"
-            f"👉 **{total_price:,} so'm**\n\n"
-            f"📌 *Izoh: Aniq narx do'konda tekshirilgach tasdiqlanadi.*"
-        ),
+        caption=f"🧮 **Tilla Baholash Natijasi:**\nVazni: {weight} gr | Proba: {proba}\n💰 Summa: **{total_price:,} so'm**",
         reply_markup=get_main_menu(message.from_user.id),
         parse_mode="Markdown"
     )
     await state.clear()
-
-@dp.message(F.text == "🛍 Tilla sotib olish")
-async def buy_gold_info(message: types.Message):
-    await message.answer(
-        "🛍 **Do'konimizdan tilla sotib olish:**\n\n"
-        "Bizda turli xil zargarlik buyumlari mavjud."
-    )
 
 async def main():
     print("Bot muvaffaqiyatli ishga tushdi...")
