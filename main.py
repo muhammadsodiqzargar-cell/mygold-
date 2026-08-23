@@ -111,7 +111,7 @@ async def start_cmd(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(
         f"Assalomu alaykum, {message.from_user.first_name}! 🌟\n\n"
-        f"**'{SHOP_NAME}' Zargarlik Botiga xush kelibsiz!**\n"
+        f"**'{SHOP_NAME}' Botiga xush kelibsiz!**\n"
         "Tillangizning holati, probasi va vazniga qarab baholab beraylikmi yoki tilla sotib olmoqchimisiz.",
         reply_markup=get_main_menu(message.from_user.id),
         parse_mode="Markdown"
@@ -154,7 +154,7 @@ async def receive_buy_photo(message: types.Message, state: FSMContext):
     await state.set_state(BuyGoldState.waiting_for_check_btn)
     await message.answer("Rasm qabul qilindi. Pastdagi tugmani bosing:", reply_markup=check_menu)
 
-@dp.message(BuyGoldState.waiting_for_check_btn, F.text == "🔎 Bundan bor yoki yo'q?")
+@dp.message(BuyGoldState.waiting_for_check_btn, F.text == "🔎 Bundan bormi yoki yo'q?")
 async def check_availability(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     photo_id = user_data.get('photo')
