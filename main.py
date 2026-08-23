@@ -6,18 +6,18 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
 # ⚠️ UMBURG’I: BotFather bergan tokeningizni shu yerga yozing!
-BOT_TOKEN = "yozdim"
+BOT_TOKEN = "8949282370:AAGin5wPZwJLqE5SA6KAJod4VA0QUy0Zj_0"
 
 # ⚠️ ADMIN SOZLAMALARI:
-# Telegram'dagi @my_id_bot ga kirib ID raqamingizni oling va shu yerga yozing
-ADMIN_ID = 123456789
+# Telegram'dagi @my_id_bot ga kirib ID raqamingizni oling va shu yerga yozing (masalan: 123456789)
+ADMIN_ID = 1341336380
 
 # Do'kon ma'lumotlari
 SHOP_NAME = "MyGold tilla do'koni"
 SHOP_ADDRESS = "Toshkent shahri, Novza Oltin Markazi"
 SHOP_CARD = "8600 0000 0000 0000 (MyGold Do'koni)"
 SHOP_PHONE = "+998 90 123 45 67"
-GROUP_LINK = "https://t.me/mygold_zargarlik_guruhi" # O'zingizning guruh havolangiz
+GROUP_LINK = "https://t.me/mygold_zargarlik_guruhi" # O'zingizning guruh havolangizni yozing
 
 SHOP_LATITUDE = 41.292915
 SHOP_LONGITUDE = 69.223297
@@ -39,7 +39,7 @@ class SellGoldState(StatesGroup):
 class BuyGoldState(StatesGroup):
     waiting_for_photo = State()
     waiting_for_check_btn = State()
-    waiting_for_check_receipt = State()
+    waiting_for_receipt = State()
 
 class AdminState(StatesGroup):
     waiting_for_new_price = State()
@@ -111,7 +111,7 @@ async def start_cmd(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(
         f"Assalomu alaykum, {message.from_user.first_name}! 🌟\n\n"
-        f"**'{SHOP_NAME}' Botiga xush kelibsiz!**\n"
+        f"**'{SHOP_NAME}' ga xush kelibsiz!**\n"
         "Tillangizning holati, probasi va vazniga qarab baholab beraylikmi yoki tilla sotib olmoqchimisiz.",
         reply_markup=get_main_menu(message.from_user.id),
         parse_mode="Markdown"
@@ -154,17 +154,18 @@ async def receive_buy_photo(message: types.Message, state: FSMContext):
     await state.set_state(BuyGoldState.waiting_for_check_btn)
     await message.answer("Rasm qabul qilindi. Pastdagi tugmani bosing:", reply_markup=check_menu)
 
-@dp.message(BuyGoldState.waiting_for_check_btn, F.text == "🔎 Bundan bormi yoki yo'q?")
+@dp.message(BuyGoldState.waiting_for_check_btn, F.text == "🔎 Bundan bor yoki yo'q?")
 async def check_availability(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     photo_id = user_data.get('photo')
+    username = f"@{message.from_user.username}" if message.from_user.username else "Username yo'q"
     
-    # Adminga xabar yuboriladi
+    # Adminga xabar yuboriladi (Faqat username ko'rsatiladi)
     if photo_id:
         await bot.send_photo(
             chat_id=ADMIN_ID,
             photo=photo_id,
-            caption=f"📥 **Yangi buyurtma so'rovi!**\nMijoz: @{message.from_user.username or 'Mijoz'}\nID: `{message.from_user.id}`",
+            caption=f"📥 **Yangi buyurtma so'rovi!**\nMijoz: {username}",
             parse_mode="Markdown"
         )
     
@@ -180,56 +181,47 @@ async def send_card_info(message: types.Message):
     await message.answer(
         f"💳 **Do'konimizning karta raqami:**\n\n"
         f"`{SHOP_CARD}`\n\n"
-        f"📍 Yetkazib berish (Yandex) uchun iltimos **lokatsiyangizni** tashlab bering!",
+        f"📍 Buyurtma berish (Yandex) uchun iltimos lokatsiyangizni tashlab bering!",
         parse_mode="Markdown"
     )
 
 @dp.message(F.text == "📉 Narxini kelishtirib bering")
-async def discount_reply(message: types.Message):
-    # Adminga so'rov yuborish
+async def ask_discount_from_admin(message: types.Message):
+    username = f"@{message.from_user.username}" if message.from_user.username else "Username yo'q"
+    
+    # Adminga narxni kelishtirish so'rovini yuborish
     await bot.send_message(
         chat_id=ADMIN_ID,
-        text=f"⚠️ **Mijoz eng taqalgan narxini so'ramoqda!**\nMijoz: @{message.from_user.username or 'Mijoz'}\nID: `{message.from_user.id}`",
+        text=f"📉 **Mijoz narxni kelishtirishni so'ramoqda!**\nMijoz: {username}\n\n⚠️ *Iltimos, ushbu xabarga 'Reply' qilib eng taqalgan narxini ham ayting!*",
         parse_mode="Markdown"
     )
-    
-    await message.answer(
-        "📍 Novza do'konimizda.\n"
-        "Uzuk 5gr, 350$, razmeri 17.5\"\n\n"
-        "😊 **Bu eng kelishilgan va taqalgan narxi!**"
-    )
+    await message.answer("⏳ So'rovingiz menejerga yetkazildi. Tez orada sizga eng taqalgan narxi aytiladi.")
 
 @dp.message(F.text == "🤝 Zaklad tashamoqchiman")
-async def deposit_reply(message: types.Message, state: FSMContext):
-    await state.set_state(BuyGoldState.waiting_for_check_receipt)
+async def send_deposit_info(message: types.Message, state: FSMContext):
+    await state.set_state(BuyGoldState.waiting_for_receipt)
     await message.answer(
-        f"🤝 **Zaklad qilish bo'limi:**\n\n"
-        f"💳 **Do'konimiz karta raqami:**\n`{SHOP_CARD}`\n\n"
-        f"📸 **Iltimos, to'lov qilganingizni bilishimiz uchun to'lov cheki (rasmi)ni ushbu botga yuboring!**",
+        f"💳 **Zaklad uchun do'konimiz karta raqami:**\n\n"
+        f"`{SHOP_CARD}`\n\n"
+        f"📸 **To'lov qilganingizni bilishimiz uchun chek rasmini shu yerga tashlang!**",
         parse_mode="Markdown"
     )
 
-# Chek (rasm) qabul qilish
-@dp.message(BuyGoldState.waiting_for_check_receipt, F.photo)
+@dp.message(BuyGoldState.waiting_for_receipt, F.photo)
 async def receive_receipt(message: types.Message, state: FSMContext):
-    photo_id = message.photo[-1].file_id
+    username = f"@{message.from_user.username}" if message.from_user.username else "Username yo'q"
     
-    # Adminga zaklad haqida to'liq ma'lumot yuborish
+    # Chek rasmini Adminga yuborish
     await bot.send_photo(
         chat_id=ADMIN_ID,
-        photo=photo_id,
-        caption=(
-            f"💸 **ZAKLAD TASHALDI!**\n\n"
-            f"👤 **Mijoz:** @{message.from_user.username or 'Username yo'q'}\n"
-            f"️ **Ismi:** {message.from_user.first_name}\n"
-            f"🆔 **ID:** `{message.from_user.id}`"
-        ),
+        photo=message.photo[-1].file_id,
+        caption=f"💰 **ZAKLAD TO'LOVI QILINDI!**\nMijoz: {username}\n\nCheck rasm tepada.",
         parse_mode="Markdown"
     )
     
     await message.answer(
-        "✅ **To'lov cheki qabul qilindi!**\n"
-        "Menejerimiz tez orada to'lovni tasdiqlaydi va siz bilan bog'lanadi. Rahmat!",
+        "✅ **To'lov chekingiz qabul qilindi!**\n\n"
+        "Menejerimiz to'lovni tasdiqlagach siz bilan bog'lanadi.",
         reply_markup=get_main_menu(message.from_user.id)
     )
     await state.clear()
@@ -254,7 +246,7 @@ async def reply_to_user_from_admin(message: types.Message):
         await message.answer(f"⚠️ Xatolik yuz berdi: {e}")
 
 # ---------------------------------------------------------
-# SOTISH VA BOSHQA BO'LIMLAR
+# BOSHQA BO'LIMLAR (TILLAMNI SOTMOQCHIMAN VA ADMIN)
 # ---------------------------------------------------------
 @dp.message(F.text == "⚙️ Narxni o'zgartirish (Admin)")
 async def set_price_start(message: types.Message, state: FSMContext):
