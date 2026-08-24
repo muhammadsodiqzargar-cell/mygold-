@@ -5,11 +5,11 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
-# ⚠️ UMBURG’I: BotFather bergan tokeningizni shu yerga yozing! (boshida va oxirida probel bo'lmasin)
+# ⚠️ UMBURG’I: BotFather bergan tokeningizni shu yerga yozing!
 BOT_TOKEN = "8949282370:AAGin5wPZwJLqE5SA6KAJod4VA0QUy0Zj_0"
 
 # ⚠️ ADMIN SOZLAMALARI:
-ADMIN_ID = 1341336380  # O'zingizning Telegram ID raqamingizni yozing
+ADMIN_ID = 1341336380  # Telegram ID raqamingiz
 
 # Do'kon ma'lumotlari
 SHOP_NAME = "MyGold tilla do'koni"
@@ -125,7 +125,8 @@ async def back_to_main(message: types.Message, state: FSMContext):
 # SOTIB OLISH BO'LIMI (BUY GOLD)
 # ---------------------------------------------------------
 @dp.message(F.text == "🛍 Tilla sotib olish")
-async def buy_gold_start(message: types.Message):
+async def buy_gold_start(message: types.Message, state: FSMContext):
+    await state.clear()
     await message.answer(
         "🛍 **Tilla sotib olish bo'limiga xush kelibsiz!**\n\n"
         "Quyidagi tugmalardan birini tanlang:",
@@ -149,16 +150,20 @@ async def ask_buy_photo(message: types.Message, state: FSMContext):
 
 @dp.message(BuyGoldState.waiting_for_photo, F.photo)
 async def receive_buy_photo(message: types.Message, state: FSMContext):
-    await state.update_data(photo=message.photo[-1].file_id)
+    # Eng yuqori sifatli rasmni saqlab olamiz
+    photo_file_id = message.photo[-1].file_id
+    await state.update_data(photo=photo_file_id)
     await state.set_state(BuyGoldState.waiting_for_check_btn)
     await message.answer("Rasm qabul qilindi. Pastdagi tugmani bosing:", reply_markup=check_menu)
 
+# ✅ BU YERDA STATE VA MANTIQLAR TUZATILDI
 @dp.message(BuyGoldState.waiting_for_check_btn, F.text == "🔎 Bundan bor yoki yo'q?")
 async def check_availability(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     photo_id = user_data.get('photo')
-    username = f"@{message.from_user.username}" if message.from_user.username else "Username yo'q"
+    username = f"@{message.from_user.username}" if message.from_user.username else "Username ko'rsatilmadi"
     
+    # Adminga rasmni uzatamiz
     if photo_id:
         await bot.send_photo(
             chat_id=ADMIN_ID,
@@ -173,6 +178,8 @@ async def check_availability(message: types.Message, state: FSMContext):
         reply_markup=buy_action_menu,
         parse_mode="Markdown"
     )
+    # State tozalanadi
+    await state.clear()
 
 @dp.message(F.text == "💳 Olmoqchiman, karta raqamizni tashavoring")
 async def send_card_info(message: types.Message):
@@ -185,7 +192,7 @@ async def send_card_info(message: types.Message):
 
 @dp.message(F.text == "📉 Narxini kelishtirib bering")
 async def ask_discount_from_admin(message: types.Message):
-    username = f"@{message.from_user.username}" if message.from_user.username else "Username yo'q"
+    username = f"@{message.from_user.username}" if message.from_user.username else "Username ko'rsatilmadi"
     
     await bot.send_message(
         chat_id=ADMIN_ID,
@@ -206,7 +213,7 @@ async def send_deposit_info(message: types.Message, state: FSMContext):
 
 @dp.message(BuyGoldState.waiting_for_receipt, F.photo)
 async def receive_receipt(message: types.Message, state: FSMContext):
-    username = f"@{message.from_user.username}" if message.from_user.username else "Username yo'q"
+    username = f"@{message.from_user.username}" if message.from_user.username else "Username ko'rsatilmadi"
     
     await bot.send_photo(
         chat_id=ADMIN_ID,
@@ -313,7 +320,7 @@ async def show_contact_info(message: types.Message):
     await message.answer_location(latitude=SHOP_LATITUDE, longitude=SHOP_LONGITUDE, reply_markup=get_main_menu(message.from_user.id))
 
 # ---------------------------------------------------------
-# ENGA PASTDAGI HANDLERLAR (Chat monitoring va Javob berish)
+# CHAT MONITORING VA JAVOB BERISH TIZIMI
 # ---------------------------------------------------------
 @dp.message(F.chat.type == "private", F.from_user.id == ADMIN_ID, F.reply_to_message)
 async def reply_to_user_from_admin(message: types.Message):
