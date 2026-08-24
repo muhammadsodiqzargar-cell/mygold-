@@ -20,7 +20,7 @@ SHOP_LATITUDE = 41.292915
 SHOP_LONGITUDE = 69.223297
 
 # Boshlang'ich 1 gramm 999 proba oltin narxi (so'mda)
-live_gold_price_999 = 1050000
+live_gold_price_999 = 1650000
 
 bot = Bot(token=BOT_TOKEN.strip())
 dp = Dispatcher()
